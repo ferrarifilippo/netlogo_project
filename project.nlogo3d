@@ -13,6 +13,7 @@ globals [
   no-leader?   ;; true if there aren't leader, false otherwise
   leader-color ;;
   fire?        ;; true if there is a fire, false otherwise
+  fire-plot?   ;; true if a fire is extinguished
 
   mapAlt groundAlt flightAlt ;; variables Z axis
   base-patches base-entry base-central ;; precache
@@ -58,6 +59,7 @@ drones-own[
   dronemates           ;; neighbor drones
   nearest-neighbor     ;; nearest neighbor
   nearest-leader       ;; nearest leader respect the signal
+  nearest-fire         ;; nearest fire in the zone
   leaders              ;; drones that send messages
 
   leader-strategy      ;; the strategy of the leader
@@ -84,7 +86,7 @@ to setup
 
   setup-drones
 
-  set t random time-fire / 2
+  set t random time-fire + 20
   set t-dead random time-dead + 20
 
   display
@@ -98,6 +100,7 @@ to setup-globals
   set drones-dead 0
 
   set fire? false
+  set fire-plot? false
   set no-leader? true
 end
 
@@ -248,9 +251,10 @@ end
 ;         MAIN          ;
 ;-----------------------;
 
-to go  ;; forever buttonpa
+to go  ;; forever button
+
   every t[
-    set t random time-fire + 10
+    set t random time-fire + 20
     ask one-of trees[
       random-fire
     ]
@@ -297,27 +301,78 @@ to go  ;; forever buttonpa
   [
     if fire-start != 0[
       set fire-duration (ticks - fire-start)
-      ;show fire-duration
       set fire-start 0
     ]
     clear-links
   ]
+
+  if fire-plot?[
+    set fire-duration (ticks - fire-start)
+    set fire-start 0
+    set fire-plot? false
+  ]
+
+  display
+  tick
+  wait 0.01
+end
+
+to go-step
+  ask drones
+  [
+    if empty? get-strategies
+    [
+        drone-choose-strategy
+    ]
+
+    execute-strategies
+  ]
+
+  every evaporation-rate[
+    ask patches with [ pzcor > 2 ][
+       set wifi? false
+    ]
+  ]
+
+  ask patches with [pzcor > 2]
+  [
+    if show-wifi[
+       recolor-patch
+    ]
+  ]
+  ifelse fire?[
+    if fire-start = 0[
+      set fire-start ticks
+    ]
+  ]
+  [
+    if fire-start != 0[
+      set fire-duration (ticks - fire-start)
+      set fire-start 0
+    ]
+    clear-links
+  ]
+
+  if fire-plot?[
+    set fire-duration (ticks - fire-start)
+    set fire-start 0
+    set fire-plot? false
+  ]
+
   display
   tick
   wait 0.01
 end
 
 to random-fire
-  if not fire? [  ;;one fire at a time for the moment
-    if shape = "tree"[
-      set color red
-      set size 4
-      set shape "fire"
+  if shape = "tree"[
+     set color red
+     set size 4
+     set shape "fire"
 
-      set tmp who
-      set fire? true
-      ask patch-at 0 0 5.5 [set fire-amount 15 set tree-with-fire tmp]
-    ]
+     set tmp who
+     set fire? true
+     ask patch-at 0 0 5.5 [set fire-amount 15 set tree-with-fire tmp]
   ]
 end
 
@@ -328,7 +383,8 @@ to recolor-patch
 end
 
 to fd-nowrap [number]
-  ifelse distance-nowrap (patch-ahead number) <= (number + 1) [ ; simply check if after hopping forward we will be a lot further than normally
+  ; simply check if after hopping forward we will be a lot further than normally
+  ifelse distance-nowrap (patch-ahead number) <= (number + 1) [
     fd number
   ]
   [
@@ -347,7 +403,7 @@ to fd-nowrap [number]
       ifelse heading > 270 [rt 90 + 15][lt 90 + 15]
     ]
 
-    ifelse distance-nowrap (patch-ahead number) <= (number + 1) [ ; simply check if after hopping forward we will be a lot further than normally
+    ifelse distance-nowrap (patch-ahead number) <= (number + 1) [
       fd number
     ][
       fd (number / 10) * -1
@@ -355,13 +411,16 @@ to fd-nowrap [number]
   ]
 end
 
-to extinguished-fire
-  set fire? false
-  set fireXcor false
-  set fireYcor false
-  set fire-here? false
+to find-nearest-fire
+  set nearest-fire min-one-of patches with [fire-here? = true] [distance myself]
 
-  set no-leader? true
+  if nearest-fire = 0[
+    set fire? false
+  ]
+end
+
+to extinguished-fire
+  set fire-plot? true
   set num-followers count drones with [follower? = true]
 
   set lakes patches with [lake? = true]
@@ -462,8 +521,6 @@ to drone-random-exploration
   set color white
   set pitch 0
   set roll 0
-  ;; set roll dirCorrection * 3 / simu-speed
-  ;; set roll 2
   fd-nowrap speed
 
   ifelse drone-receive-messages[
@@ -490,7 +547,7 @@ to drone-random-exploration
 end
 
 to drone-move-to-lake
-  ifelse fire? = false[
+  ifelse fire? = false or fire-plot?[
     add-strategy "drone-random-exploration" "true"
   ]
   [
@@ -544,7 +601,7 @@ to drone-move-to-lake
 end
 
 to drone-move-to-fire
-  ifelse fire? = false[
+  ifelse fire? = false or fire-plot?[
     add-strategy "drone-random-exploration" "true"
   ]
   [
@@ -557,48 +614,55 @@ to drone-move-to-fire
 
     let newheading heading
 
-    set newheading towards-nowrap one-of patches with [fire-here?]
+    find-nearest-fire
 
-    let dirCorrection subtract-headings newheading heading
+    ifelse nearest-fire != nobody and nearest-fire != 0[
+      set newheading towards-nowrap nearest-fire
 
-    ;;rt min (list ((newheading - oldheading) mod 360) 50)
-    ifelse dirCorrection > maxturn [set dirCorrection maxturn]
-    [
-      if dirCorrection < maxturn * -1 [set dirCorrection maxturn * -1]
-    ]
+      let dirCorrection subtract-headings newheading heading
 
-    rt dirCorrection
-
-    set pitch 0
-    set roll 0
-    fd-nowrap speed
-
-    set tmp false
-    set tmp2 false
-    ask neighbors[
-      if fire-amount > 0
+      ;;rt min (list ((newheading - oldheading) mod 360) 50)
+      ifelse dirCorrection > maxturn [set dirCorrection maxturn]
       [
-        ifelse fire-amount = 1[
-          set tmp true
-          extinguished-fire
-          ask drones [
-            set leader? false
-          ]
-          ask tree tree-with-fire[
-            die
-          ]
-        ]
-        [
-          set tmp2 true      ;; and reduce the fire amount
-          if ((fire-amount mod 4) = 0) and fire-amount != 4[
-            ask tree tree-with-fire[
-              set size size - 1
-            ]
-          ]
-        ]
-        set fire-amount fire-amount - 1
+        if dirCorrection < maxturn * -1 [set dirCorrection maxturn * -1]
       ]
 
+      rt dirCorrection
+
+      set pitch 0
+      set roll 0
+      fd-nowrap speed
+
+      set tmp false
+      set tmp2 false
+      ask neighbors[
+        if fire-amount > 0
+        [
+          ifelse fire-amount = 1[
+            set tmp true
+            set fire-here? false
+            extinguished-fire
+            ask drones [
+              set leader? false
+            ]
+            ask tree tree-with-fire[
+              die
+            ]
+          ]
+          [
+            set tmp2 true      ;; and reduce the fire amount
+            if ((fire-amount mod 4) = 0) and fire-amount != 4[
+              ask tree tree-with-fire[
+                set size size - 1
+              ]
+            ]
+          ]
+          set fire-amount fire-amount - 1
+        ]
+
+      ]
+    ][
+      set tmp true
     ]
 
     ifelse tmp = true[
@@ -614,8 +678,9 @@ to drone-move-to-fire
 end
 
 to drone-follow-the-leader
-  ifelse no-leader? = true or not leader-around[
+  ifelse no-leader? = true or not leader-around or leader?[
     set follower? false
+    set leader? false
     fd-nowrap speed
     add-strategy "drone-random-exploration" "true"
   ][
@@ -723,7 +788,7 @@ to flock
 
         let newheading heading
 
-        if nearest-leader != 0[
+        if nearest-leader != 0 and nearest-leader != nobody[
 
         set newheading towards-nowrap nearest-leader
 
@@ -1033,7 +1098,7 @@ BUTTON
 248
 89
 10-step
-repeat 10 [go]
+repeat 10 [go-step]
 NIL
 1
 T
@@ -1061,7 +1126,7 @@ BUTTON
 247
 45
 1-step
-repeat 1 [go]
+repeat 1 [go-step]
 NIL
 1
 T
@@ -1197,7 +1262,7 @@ n-rivers
 n-rivers
 0
 5
-0.0
+1.0
 1
 1
 NIL
@@ -1384,7 +1449,7 @@ SLIDER
 time-fire
 time-fire
 40
-100
+200
 40.0
 20
 1
@@ -1400,7 +1465,7 @@ time-dead
 time-dead
 100
 1000
-1000.0
+200.0
 100
 1
 NIL

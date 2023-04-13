@@ -1,9 +1,7 @@
-;;BREED
 breed [drones drone]
 breed [trees tree]
 breed [envconstructors envconstructor]
 
-;;LINK BREED
 directed-link-breed [drone-links drone-link]
 
 globals [
@@ -19,14 +17,14 @@ globals [
   mapAlt groundAlt flightAlt ;; variables Z axis
   base-patches base-entry base-central ;; precache
 
-  fire-start
-  fire-duration
-  num-followers
-  drones-dead
-  distance-fire-lake
+  fire-start    ;; variable for the plot
+  fire-duration ;; variable in the plot
+  num-followers ;; variable in the plot
+  drones-dead   ;; variable in the plot
+  distance-fire-lake  ;; variable in the plot
 
-  signal-direction
-  message-here
+  signal-direction ;; direction of the messages
+  message-here ;; true if the drone receive messages
 ]
 
 patches-own [
@@ -46,8 +44,8 @@ patches-own [
   fire-source-number   ;; number (1, 2, or 3) to identify the fire sources
   tree-with-fire       ;; index of tree with fire
 
-  message
-  wifi?
+  message ;; message diffuse by the leader
+  wifi?   ;; true if the patch is in the wifi area
 ]
 
 drones-own[
@@ -57,36 +55,26 @@ drones-own[
   fly?                 ;; true if the drone is flying, false otherwise
   leader?              ;; true if the drone is leader, false otherwise
   follower?            ;; true if the drone is following a leader, false otherwise
-  dronemates           ;;
-  nearest-neighbor     ;;
-  nearest-leader       ;;
-  leaders
+  dronemates           ;; neighbor drones
+  nearest-neighbor     ;; nearest neighbor
+  nearest-leader       ;; nearest leader respect the signal
+  leaders              ;; drones that send messages
 
-  incoming-queue
-  beliefs
+  leader-strategy      ;; the strategy of the leader
 
-  leader-strategy
-
-  speed                ;;
-  maxturn              ;;
+  speed                ;; velocity of the drones
+  maxturn              ;; max angle of the turn
 
 
-  take-off-anim-frame  prev-heading anim-tmp ;;variabili temporanee per alcune procedure di animazione (decollo e atterraggio)
+  take-off-anim-frame  prev-heading anim-tmp ;; temporal variables for animation
 
-
-  last-send-time last-seen-time ;;for communication purposes
-
-
-  altGoal              ;;per il cambio di altitudine, andremo gradualmente mentre facciamo qualcos'altro
-
-
-  following-leader
-  circular-radius-random  ;;;un po' di casualità nel raggio della pattuglia del cerchio
+  following-leader     ;; variable to help idenditicate the following leader drones
 ]
 
 ;----------------------;
 ;        SETUP         ;
 ;----------------------;
+
 to setup
   clear-all
 
@@ -221,7 +209,6 @@ to setup-drones
       set strategies[];
       set leader? false
       set follower? false
-      set incoming-queue [];
       set leader-strategy false
       set following-leader false
       set dronemates no-turtles
@@ -257,9 +244,9 @@ to setup-drones
   ]
 end
 
-;----------------------------------------------------------------------------------------;
-;         MAIN                                                                           ;
-;----------------------------------------------------------------------------------------;
+;-----------------------;
+;         MAIN          ;
+;-----------------------;
 
 to go  ;; forever buttonpa
   every t[
@@ -383,9 +370,10 @@ to extinguished-fire
   set distance-fire-lake distance nearest-lake
 end
 
-;--------------------------------------------------------------------------;
-;   DRONE STRATEGIES                                                       ;
-;--------------------------------------------------------------------------;
+
+;-----------------------;
+;    DRONE STRATEGIES   ;
+;-----------------------;
 
 to drones-start
   set heading 270
@@ -717,9 +705,9 @@ to drone-dead
 end
 
 
-;--------------------------------------------------------------------------;
-;   FLOCKING                                                               ;
-;--------------------------------------------------------------------------;
+;-----------------------;
+;       FLOCKING        ;
+;-----------------------;
 
 to flock
   ;; procedure for arranging drones in formation
@@ -793,9 +781,9 @@ to turn-at-most [turn max-turn]  ;; turtle procedure
 end
 
 
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;;;;;;; CODE FOR HANDLING STRATEGY
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;--------------------------;
+; CODE FOR MANAGE STRATEGY ;
+;--------------------------;
 
 to drone-choose-strategy
   add-strategy "drone-random-exploration" "true"
@@ -907,9 +895,9 @@ to-report leader-around
 end
 
 
-;======================= ;
-;     AUX FUNCTIONS .    ;
-;======================= ;
+;-----------------------;
+;     AUX FUNCTIONS     ;
+;-----------------------;
 
 ; Faster implementation of in-radius than NetLogo native
 to-report fast-in-radius [objects radius]
@@ -1005,7 +993,7 @@ simu-speed
 simu-speed
 1
 4
-3.0
+2.0
 1
 1
 NIL
@@ -1360,21 +1348,6 @@ evaporation-rate
 NIL
 HORIZONTAL
 
-SLIDER
-290
-239
-545
-272
-maximum-separation-leader
-maximum-separation-leader
-0
-30
-25.0
-0.5
-1
-patchess
-HORIZONTAL
-
 PLOT
 511
 536
@@ -1431,6 +1404,21 @@ time-dead
 100
 1
 NIL
+HORIZONTAL
+
+SLIDER
+290
+239
+545
+272
+maximum-separation-leader
+maximum-separation-leader
+0
+30
+25.0
+0.5
+1
+patchess
 HORIZONTAL
 
 @#$#@#$#@

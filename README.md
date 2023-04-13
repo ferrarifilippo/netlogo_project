@@ -9,7 +9,7 @@ This project aims to implement the leader-follower structure for pattern formati
 Indeed, the drone that found the fire becomes the leader and is followed by the others in its actions to try to tame it. 
 The following drones arrange themselves in a V-shaped pattern to improve aerodynamic efficiency and save energy.
 
-![leader-follower structure](https://github.com/ferrarifilippo/netlogo_project/main/images/v-shape.png)
+![leader-follower structure](https://github.com/ferrarifilippo/netlogo_project/blob/main/images/v-shape.png)
 
  ### Credits and References 
  <p>This software is provided as it is, without any warranties.</p> 
